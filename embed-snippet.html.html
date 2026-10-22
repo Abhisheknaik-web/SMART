@@ -1,0 +1,132 @@
+<!-- Receipt Ledger: paste this block where you want the tool to appear -->
+<style>
+#rl-app{--bg:#e9eef2;--paper:#fbfcfd;--ink:#14213d;--mute:#5b6b82;--line:#c9d3dd;--flag:#d6246e;--flagbg:#fde6ef;--ok:#1b7f6b;--bar:#14213d;
+background:var(--bg);color:var(--ink);font:16px/1.5 ui-rounded,"Avenir Next",system-ui,sans-serif;max-width:640px;margin:0 auto;padding:20px 16px 48px;box-sizing:border-box}
+#rl-app *{box-sizing:border-box}
+@media (prefers-color-scheme:dark){#rl-app{--bg:#0e1522;--paper:#162033;--ink:#e8eef7;--mute:#93a3ba;--line:#2b3a54;--flag:#ff6aa5;--flagbg:#3a1830;--ok:#4cc7ae;--bar:#8fb4ff}}
+#rl-app main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+#rl-app h1{font:700 28px/1.1 Georgia,"Times New Roman",serif;margin:8px 0 4px}
+#rl-app h2{font:700 17px/1.2 Georgia,serif;margin:0 0 10px}
+#rl-app .sub{color:var(--mute);margin:0 0 20px}
+#rl-app .slip{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:16px; background-image:radial-gradient(circle at 8px 100%,var(--bg) 6px,transparent 7px);background-size:16px 8px;background-repeat:repeat-x;background-position:0 100%;padding-bottom:24px}
+#rl-app textarea,#rl-app input,#rl-app select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px}
+#rl-app textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:14px}
+#rl-app .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+#rl-app .row3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;margin-top:8px}
+#rl-app label{font-size:13px;color:var(--mute);display:block;margin-bottom:2px}
+#rl-app button{font:inherit;font-weight:600;border:0;border-radius:6px;padding:10px 14px;background:var(--ink);color:var(--paper);cursor:pointer}
+#rl-app button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+#rl-app button:focus-visible,#rl-app input:focus-visible,#rl-app select:focus-visible,#rl-app textarea:focus-visible{outline:3px solid var(--flag);outline-offset:1px}
+#rl-app .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#rl-app .alert{background:var(--flagbg);border-left:4px solid var(--flag);padding:10px 12px;border-radius:4px;margin-bottom:8px}
+#rl-app .alert b{color:var(--flag)}
+#rl-app .alert small{display:block;color:var(--mute)}
+#rl-app .none{color:var(--ok);margin:0}
+#rl-app .bar{display:grid;grid-template-columns:96px 1fr 72px;gap:8px;align-items:center;font-size:14px;margin:6px 0}
+#rl-app .bar i{display:block;height:10px;background:var(--bar);border-radius:2px}
+#rl-app .bar span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+#rl-app .item{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:10px 0;border-top:1px dashed var(--line)}
+#rl-app .item small{color:var(--mute)}
+#rl-app .item .amt{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+#rl-app .item.flag .amt{color:var(--flag)}
+#rl-app .tag{font-size:12px;background:var(--flag);color:#fff;border-radius:3px;padding:0 6px;margin-left:6px}
+#rl-app .del{background:none;color:var(--mute);padding:0 4px;font-weight:400;grid-column:2;justify-self:end}
+#rl-app .total{font:700 30px Georgia,serif;font-variant-numeric:tabular-nums}
+</style>
+<div id="rl-app">
+<h1>Receipt Ledger</h1>
+<p class="sub">Paste a receipt, log the expense, and get flagged when something looks off.</p>
+
+<section class="slip">
+<h2>Add a receipt</h2>
+<label for="rl-raw">Receipt text</label>
+<textarea id="rl-raw" placeholder="Paste text from a receipt, e.g.&#10;Corner Market&#10;10/14/2026&#10;Milk 4.20&#10;Total 38.75"></textarea>
+<div class="actions"><button id="rl-read">Read receipt</button><button class="ghost" id="rl-sample">Load sample data</button></div>
+<div class="row3">
+<div><label for="rl-m">Merchant</label><input id="rl-m"></div>
+<div><label for="rl-a">Amount</label><input id="rl-a" type="number" step="0.01" inputmode="decimal"></div>
+<div><label for="rl-d">Date</label><input id="rl-d" type="date"></div>
+</div>
+<div class="row"><div><label for="rl-c">Category</label><select id="rl-c"></select></div><div style="align-self:end"><button id="rl-add" style="width:100%">Save expense</button></div></div>
+</section>
+
+<section class="slip"><h2>Anomalies</h2><div id="rl-alerts"></div></section>
+
+<section class="slip"><h2>Spending</h2><div class="total" id="rl-tot">$0.00</div><div id="rl-bars"></div></section>
+
+<section class="slip"><h2>Expenses</h2><div id="rl-list"></div>
+<div class="actions"><button class="ghost" id="rl-clear">Clear all</button></div></section>
+</div>
+<script>
+(function(){
+
+var CATS={Groceries:/market|grocer|whole foods|trader|kroger|aldi|safeway|costco/i,Dining:/cafe|coffee|restaurant|pizza|grill|burger|starbucks|diner|bar\b|taco/i,Transport:/uber|lyft|shell|fuel|gas\b|parking|transit|chevron/i,Shopping:/amazon|target|walmart|best buy|store/i,Health:/pharmacy|cvs|walgreens|clinic|dental/i,Utilities:/electric|water|internet|comcast|verizon|at&t|utility/i,Travel:/hotel|airline|airways|airbnb|flight/i,Software:/subscription|software|cloud|app store|github/i};
+var names=Object.keys(CATS).concat(["Other"]);
+var $=function(i){return document.getElementById(i)};
+var items=[];
+try{items=JSON.parse(localStorage.getItem("rl-items")||"[]")}catch(e){items=[]}
+function save(){try{localStorage.setItem("rl-items",JSON.stringify(items))}catch(e){}}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function money(n){return "$"+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+function guess(t){for(var k in CATS)if(CATS[k].test(t))return k;return "Other"}
+function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function parse(txt){
+ var lines=txt.split(/\n/).map(function(l){return l.trim()}).filter(Boolean);
+ var merchant=(lines.find(function(l){return /[a-z]{3}/i.test(l)&&!/^\d/.test(l)})||"").replace(/[^\w &'.-]/g,"").slice(0,40);
+ var amt=0,m,re=/(total|amount due|balance due|grand total)[^\d\n]*\$?\s*([\d,]+\.\d{2})/ig;
+ while((m=re.exec(txt)))amt=parseFloat(m[2].replace(/,/g,""));
+ if(!amt){var all=(txt.match(/\d[\d,]*\.\d{2}/g)||[]).map(function(x){return parseFloat(x.replace(/,/g,""))});amt=all.length?Math.max.apply(null,all):0}
+ var date=today(),d;
+ if((d=txt.match(/(\d{4})-(\d{2})-(\d{2})/)))date=d[0];
+ else if((d=txt.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/))){var y=d[3].length==2?"20"+d[3]:d[3];date=y+"-"+d[1].padStart(2,"0")+"-"+d[2].padStart(2,"0")}
+ return{merchant:merchant,amount:amt,date:date,category:guess(merchant+" "+txt)};
+}
+function median(a){var s=a.slice().sort(function(x,y){return x-y}),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):0}
+function analyze(){
+ var out={},all=median(items.map(function(x){return x.amount}));
+ items.forEach(function(e){
+  var why=[],peers=items.filter(function(p){return p.category===e.category&&p.id!==e.id}).map(function(p){return p.amount});
+  if(peers.length>=3){
+   var m=median(peers),mad=median(peers.map(function(x){return Math.abs(x-m)}));
+   var z=mad?0.6745*(e.amount-m)/mad:(e.amount>m*2.5?9:0);
+   if(z>3.5||e.amount>m*3)why.push("Unusually high for "+e.category+" (typical "+money(m)+")");
+  }else if(items.length>=5&&e.amount>all*4){why.push("Much larger than your typical expense ("+money(all)+")")}
+  items.forEach(function(o){
+   if(o.id<e.id&&o.merchant.toLowerCase()===e.merchant.toLowerCase()&&o.amount===e.amount&&Math.abs(new Date(o.date)-new Date(e.date))<=3*864e5)why.push("Possible duplicate of "+o.date+" charge");
+  });
+  if(why.length)out[e.id]=why;
+ });
+ return out;
+}
+function render(){
+ var an=analyze(),ids=Object.keys(an);
+ $("rl-alerts").innerHTML=ids.length?ids.map(function(id){var e=items.find(function(x){return String(x.id)===id});return '<div class="alert"><b>'+esc(e.merchant)+" · "+money(e.amount)+'</b><small>'+an[id].map(esc).join("<br>")+'</small></div>'}).join(""):'<p class="none">'+(items.length?"Nothing unusual found.":"Add a few expenses and anything odd will show up here.")+"</p>";
+ var tot=items.reduce(function(s,e){return s+e.amount},0);$("rl-tot").textContent=money(tot);
+ var by={};items.forEach(function(e){by[e.category]=(by[e.category]||0)+e.amount});
+ var mx=Math.max.apply(null,Object.values(by).concat([1]));
+ $("rl-bars").innerHTML=Object.keys(by).sort(function(a,b){return by[b]-by[a]}).map(function(k){return '<div class="bar"><span>'+esc(k)+'</span><span><i style="width:'+(by[k]/mx*100)+'%"></i></span><span>'+money(by[k])+"</span></div>"}).join("");
+ var sorted=items.slice().sort(function(a,b){return b.date.localeCompare(a.date)});
+ $("rl-list").innerHTML=sorted.length?sorted.map(function(e){return '<div class="item'+(an[e.id]?" flag":"")+'"><div>'+esc(e.merchant)+(an[e.id]?'<span class="tag">flagged</span>':"")+'<br><small>'+esc(e.date)+" · "+esc(e.category)+'</small></div><div class="amt">'+money(e.amount)+'</div><button class="del" data-id="'+e.id+'" aria-label="Delete expense">Delete</button></div>'}).join(""):'<p class="sub">No expenses yet. Paste a receipt above to start.</p>';
+}
+function fill(p){$("rl-m").value=p.merchant;$("rl-a").value=p.amount||"";$("rl-d").value=p.date;$("rl-c").value=p.category}
+$("rl-c").innerHTML=names.map(function(n){return "<option>"+n+"</option>"}).join("");
+$("rl-d").value=today();
+$("rl-read").onclick=function(){var t=$("rl-raw").value;if(t.trim())fill(parse(t))};
+$("rl-add").onclick=function(){
+ var a=parseFloat($("rl-a").value),m=$("rl-m").value.trim();
+ if(!m||!(a>0)){alert("Enter a merchant and an amount above zero.");return}
+ items.push({id:Date.now()+Math.floor(Math.random()*1000),merchant:m,amount:a,date:$("rl-d").value||today(),category:$("rl-c").value});
+ save();render();$("rl-raw").value="";fill({merchant:"",amount:"",date:today(),category:"Other"});
+};
+$("rl-list").onclick=function(ev){var id=ev.target.getAttribute("data-id");if(id){items=items.filter(function(x){return String(x.id)!==id});save();render()}};
+$("rl-clear").onclick=function(){if(items.length&&confirm("Delete all expenses?")){items=[];save();render()}};
+$("rl-sample").onclick=function(){
+ var s=[["Corner Market",42.1,"Groceries"],["Corner Market",38.75,"Groceries"],["Corner Market",45.3,"Groceries"],["Corner Market",40.2,"Groceries"],["Corner Market",212.9,"Groceries"],["Blue Bottle Cafe",6.5,"Dining"],["Blue Bottle Cafe",7.25,"Dining"],["Blue Bottle Cafe",6.8,"Dining"],["Uber",18.4,"Transport"],["Uber",18.4,"Transport"],["Cloud Hosting Subscription",24,"Software"]];
+ var d=new Date(),base=Date.now();
+ items=s.map(function(r,i){var x=new Date(d-(s.length-i)*2*864e5);return{id:base+i,merchant:r[0],amount:r[1],date:x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"),category:r[2]}});
+ items[9].date=items[8].date;save();render();
+};
+render();
+
+})();
+</script>
